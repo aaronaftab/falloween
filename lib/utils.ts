@@ -26,6 +26,18 @@ export function validateFile(file: File): { valid: boolean; error?: string } {
 }
 
 export function downloadImage(url: string, filename: string) {
+  // Validate URL is from allowed domain (fal.media)
+  try {
+    const urlObj = new URL(url);
+    if (!urlObj.hostname.endsWith('.fal.media') && urlObj.hostname !== 'fal.media') {
+      console.error('Download blocked: URL must be from fal.media domain');
+      throw new Error('Invalid download URL');
+    }
+  } catch (err) {
+    console.error('Download blocked: Invalid URL', err);
+    throw new Error('Invalid download URL');
+  }
+
   const link = document.createElement('a');
   link.href = url;
   link.download = filename;

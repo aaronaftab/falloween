@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { EditHistoryItem } from '@/lib/types';
 
@@ -23,6 +23,22 @@ export function CostumeEditor({
   const [prompt, setPrompt] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Refs to track polling intervals and timeouts for cleanup
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+      if (pollTimeoutRef.current) {
+        clearTimeout(pollTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleApplyChanges = async () => {
     if (!prompt.trim()) return;
@@ -53,6 +69,14 @@ export function CostumeEditor({
       // Step 2: Poll for status
       const pollStatus = async (): Promise<string> => {
         return new Promise((resolve, reject) => {
+          // Clear any existing intervals/timeouts
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current);
+          }
+          if (pollTimeoutRef.current) {
+            clearTimeout(pollTimeoutRef.current);
+          }
+
           const pollInterval = setInterval(async () => {
             try {
               const statusResponse = await fetch(
@@ -60,7 +84,8 @@ export function CostumeEditor({
               );
 
               if (!statusResponse.ok) {
-                clearInterval(pollInterval);
+                if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+                if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
                 const data = await statusResponse.json();
                 reject(new Error(data.error || 'Failed to check status'));
                 return;
@@ -69,7 +94,8 @@ export function CostumeEditor({
               const status = await statusResponse.json();
 
               if (status.status === 'COMPLETED') {
-                clearInterval(pollInterval);
+                if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+                if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
                 
                 // Extract image URL from response
                 // The fal client returns the actual response data in the status object when completed
@@ -82,19 +108,24 @@ export function CostumeEditor({
 
                 resolve(newImageUrl);
               } else if (status.status === 'FAILED') {
-                clearInterval(pollInterval);
+                if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+                if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
                 reject(new Error('Edit failed'));
               }
               // Continue polling if IN_QUEUE or IN_PROGRESS
             } catch (err) {
-              clearInterval(pollInterval);
+              if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+              if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
               reject(err);
             }
           }, 5000); // Poll every 5 seconds
 
+          // Store refs for cleanup
+          pollIntervalRef.current = pollInterval;
+
           // Set a 120-second timeout for the entire polling process
-          setTimeout(() => {
-            clearInterval(pollInterval);
+          pollTimeoutRef.current = setTimeout(() => {
+            if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
             reject(new Error('Generation timed out. Please try again.'));
           }, 120000);
         });

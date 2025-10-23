@@ -18,6 +18,7 @@ export function ClothingSlot({ item, onUpdate, onRemove }: ClothingSlotProps) {
   const [loadingType, setLoadingType] = useState<'upload' | 'generate' | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Cleanup on unmount
@@ -25,6 +26,9 @@ export function ClothingSlot({ item, onUpdate, onRemove }: ClothingSlotProps) {
     return () => {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
+      }
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
       }
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
@@ -118,6 +122,14 @@ export function ClothingSlot({ item, onUpdate, onRemove }: ClothingSlotProps) {
       // Step 2: Poll for status
       const pollStatus = async (): Promise<void> => {
         return new Promise((resolve, reject) => {
+          // Clear any existing intervals/timeouts
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current);
+          }
+          if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+          }
+
           const pollInterval = setInterval(async () => {
             try {
               const statusResponse = await fetch(
@@ -126,7 +138,8 @@ export function ClothingSlot({ item, onUpdate, onRemove }: ClothingSlotProps) {
               );
 
               if (!statusResponse.ok) {
-                clearInterval(pollInterval);
+                if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+                if (timeoutRef.current) clearTimeout(timeoutRef.current);
                 const data = await statusResponse.json();
                 reject(new Error(data.error || 'Failed to check status'));
                 return;
@@ -135,7 +148,8 @@ export function ClothingSlot({ item, onUpdate, onRemove }: ClothingSlotProps) {
               const status = await statusResponse.json();
 
               if (status.status === 'COMPLETED') {
-                clearInterval(pollInterval);
+                if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+                if (timeoutRef.current) clearTimeout(timeoutRef.current);
                 
                 // Extract image URL from response
                 // The fal client returns the actual response data in the status object when completed
@@ -150,19 +164,24 @@ export function ClothingSlot({ item, onUpdate, onRemove }: ClothingSlotProps) {
                 onUpdate({ id: itemId, type: 'text', url, text: currentText, loading: false });
                 resolve();
               } else if (status.status === 'FAILED') {
-                clearInterval(pollInterval);
+                if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+                if (timeoutRef.current) clearTimeout(timeoutRef.current);
                 reject(new Error('Generation failed'));
               }
               // Continue polling if IN_QUEUE or IN_PROGRESS
             } catch (err) {
-              clearInterval(pollInterval);
+              if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+              if (timeoutRef.current) clearTimeout(timeoutRef.current);
               reject(err);
             }
           }, 5000); // Poll every 5 seconds
 
+          // Store ref for cleanup
+          pollIntervalRef.current = pollInterval;
+
           // Set a 120-second timeout for the entire polling process
           timeoutRef.current = setTimeout(() => {
-            clearInterval(pollInterval);
+            if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
             if (abortControllerRef.current) {
               abortControllerRef.current.abort();
             }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { UploadPhoto } from '@/components/upload-photo';
 import { ClothingInput } from '@/components/clothing-input';
@@ -22,6 +22,22 @@ export default function Home() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  
+  // Refs to track polling intervals and timeouts for cleanup
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+      if (pollTimeoutRef.current) {
+        clearTimeout(pollTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const filledClothingCount = clothingItems.filter((item) => item.url).length;
   const canProceedToGenerate = userPhoto && filledClothingCount > 0;
@@ -67,6 +83,14 @@ export default function Home() {
       // Step 2: Poll for status
       const pollStatus = async (): Promise<void> => {
         return new Promise((resolve, reject) => {
+          // Clear any existing intervals/timeouts
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current);
+          }
+          if (pollTimeoutRef.current) {
+            clearTimeout(pollTimeoutRef.current);
+          }
+
           const pollInterval = setInterval(async () => {
             try {
               const statusResponse = await fetch(
@@ -74,7 +98,8 @@ export default function Home() {
               );
 
               if (!statusResponse.ok) {
-                clearInterval(pollInterval);
+                if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+                if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
                 const data = await statusResponse.json();
                 reject(new Error(data.error || 'Failed to check status'));
                 return;
@@ -83,7 +108,8 @@ export default function Home() {
               const status = await statusResponse.json();
 
               if (status.status === 'COMPLETED') {
-                clearInterval(pollInterval);
+                if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+                if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
                 
                 // Extract image URL and generation time from response
                 // The fal client returns the actual response data in the status object when completed
@@ -108,19 +134,24 @@ export default function Home() {
                 
                 resolve();
               } else if (status.status === 'FAILED') {
-                clearInterval(pollInterval);
+                if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+                if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
                 reject(new Error('Generation failed'));
               }
               // Continue polling if IN_QUEUE or IN_PROGRESS
             } catch (err) {
-              clearInterval(pollInterval);
+              if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+              if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
               reject(err);
             }
           }, 5000); // Poll every 5 seconds
 
+          // Store refs for cleanup
+          pollIntervalRef.current = pollInterval;
+
           // Set a 120-second timeout for the entire polling process
-          setTimeout(() => {
-            clearInterval(pollInterval);
+          pollTimeoutRef.current = setTimeout(() => {
+            if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
             reject(new Error('Generation timed out. Please try again.'));
           }, 120000);
         });
@@ -163,7 +194,12 @@ export default function Home() {
 
   const handleDownload = () => {
     if (generatedCostume) {
-      downloadImage(generatedCostume, 'my-halloween-costume.png');
+      try {
+        downloadImage(generatedCostume, 'my-halloween-costume.png');
+      } catch (err) {
+        console.error('Download failed:', err);
+        alert('Failed to download image. Please try again.');
+      }
     }
   };
 
