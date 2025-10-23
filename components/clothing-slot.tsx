@@ -158,16 +158,16 @@ export function ClothingSlot({ item, onUpdate, onRemove }: ClothingSlotProps) {
               clearInterval(pollInterval);
               reject(err);
             }
-          }, 2000); // Poll every 2 seconds
+          }, 5000); // Poll every 5 seconds
 
-          // Set a 60-second timeout for the entire polling process
+          // Set a 120-second timeout for the entire polling process
           timeoutRef.current = setTimeout(() => {
             clearInterval(pollInterval);
             if (abortControllerRef.current) {
               abortControllerRef.current.abort();
             }
             reject(new Error('Generation timed out. Please try again.'));
-          }, 60000);
+          }, 120000);
         });
       };
 

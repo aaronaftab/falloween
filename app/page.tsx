@@ -116,13 +116,13 @@ export default function Home() {
               clearInterval(pollInterval);
               reject(err);
             }
-          }, 2000); // Poll every 2 seconds
+          }, 5000); // Poll every 5 seconds
 
-          // Set a 60-second timeout for the entire polling process
+          // Set a 120-second timeout for the entire polling process
           setTimeout(() => {
             clearInterval(pollInterval);
             reject(new Error('Generation timed out. Please try again.'));
-          }, 60000);
+          }, 120000);
         });
       };
 
@@ -331,13 +331,13 @@ export default function Home() {
                           onClick={() => setStep(2)}
                           className="px-6 py-3 bg-secondary text-secondary-foreground rounded-lg font-medium hover:bg-secondary/80 transition-colors"
                         >
-                          ← Back to Clothing
+                          ← Back
                         </button>
                         <button
                           onClick={handleContinueToGenerate}
                           className="px-6 py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors"
                         >
-                          Try Again
+                          Try again
                         </button>
                       </div>
                     </div>

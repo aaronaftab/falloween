@@ -90,13 +90,13 @@ export function CostumeEditor({
               clearInterval(pollInterval);
               reject(err);
             }
-          }, 2000); // Poll every 2 seconds
+          }, 5000); // Poll every 5 seconds
 
-          // Set a 60-second timeout for the entire polling process
+          // Set a 120-second timeout for the entire polling process
           setTimeout(() => {
             clearInterval(pollInterval);
             reject(new Error('Generation timed out. Please try again.'));
-          }, 60000);
+          }, 120000);
         });
       };
 
