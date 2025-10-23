@@ -13,8 +13,6 @@ interface CostumeEditorProps {
 const EXAMPLE_PROMPTS = [
   'add fake blood',
   'make it spookier',
-  'change background to haunted house',
-  'add a witch hat',
 ];
 
 export function CostumeEditor({
@@ -117,15 +115,7 @@ export function CostumeEditor({
   };
 
   return (
-    <div className="w-full max-w-2xl mx-auto space-y-4">
-      <div className="text-center">
-        <h2 className="text-xl font-bold text-foreground mb-2">
-          Refine Your Costume
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          Add details or make changes to perfect your Halloween look
-        </p>
-      </div>
+    <div className="w-full max-w-md mx-auto space-y-4">
 
       <div className="space-y-4">
         <div className="flex gap-2">
@@ -138,7 +128,7 @@ export function CostumeEditor({
                 handleApplyChanges();
               }
             }}
-            placeholder="e.g., add fake blood, make it spookier..."
+            placeholder="e.g. add fake blood, make it spookier..."
             className="flex-1 px-4 py-3 bg-input border border-border rounded-lg text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:ring-2 focus:ring-ring"
             disabled={isEditing}
           />
@@ -153,7 +143,7 @@ export function CostumeEditor({
                 Editing...
               </span>
             ) : (
-              'Apply Changes'
+              'Edit'
             )}
           </button>
         </div>
@@ -182,7 +172,7 @@ export function CostumeEditor({
       {editHistory.length > 0 && (
         <div className="space-y-2">
           <h3 className="text-sm font-medium text-muted-foreground">
-            Edit History (last {Math.min(editHistory.length, 3)}):
+            Edit history (last {Math.min(editHistory.length, 3)}):
           </h3>
           <div className="space-y-2">
             {editHistory.slice(-3).reverse().map((edit, index) => (
