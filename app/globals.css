@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+@theme {
+  /* Semantic Color Tokens - Black & White Theme */
+  --color-background: hsl(0 0% 0%);
+  --color-foreground: hsl(0 0% 100%);
+  
+  --color-primary: hsl(0 0% 100%);
+  --color-primary-foreground: hsl(0 0% 0%);
+  
+  --color-secondary: hsl(0 0% 10%);
+  --color-secondary-foreground: hsl(0 0% 100%);
+  
+  --color-muted: hsl(0 0% 10%);
+  --color-muted-foreground: hsl(0 0% 70%);
+  
+  --color-border: hsl(0 0% 20%);
+  --color-input: hsl(0 0% 15%);
+  --color-ring: hsl(0 0% 100%);
+  
+  /* Original Halloween colors (if needed) */
+  --color-halloween-orange: #FF6B35;
+  --color-halloween-purple: #6B2D5C;
+  --color-halloween-dark: #1A1423;
+  --color-halloween-light: #FFE66D;
+  
+  /* Animations */
+  --animate-pulse-slow: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-bounce-slow: bounce 2s infinite;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-space-mono), monospace;
+  }
+}
+
