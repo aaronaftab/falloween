@@ -1,9 +1,10 @@
 import { fal } from "@fal-ai/client";
 import { NextRequest, NextResponse } from "next/server";
+import { config } from "@/lib/config";
 
 // Configure fal client with API key
 fal.config({
-  credentials: process.env.FAL_KEY,
+  credentials: config.fal.apiKey,
 });
 
 // Route timeout for file uploads

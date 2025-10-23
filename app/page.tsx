@@ -184,7 +184,12 @@ export default function Home() {
       <header className="bg-background">
         <div className="container mx-auto px-4 py-6">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+            <a 
+              href="https://fal.ai" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center gap-3"
+            >
               <div className="h-12 w-48 relative">
                 <Image
                   src="/falloween_logo_white.png"
@@ -193,7 +198,7 @@ export default function Home() {
                   className="object-contain object-left"
                 />
               </div>
-            </div>
+            </a>
             {step > 1 && (
               <button
                 onClick={handleStartOver}
