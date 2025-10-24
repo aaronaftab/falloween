@@ -66,7 +66,7 @@ export function ApiKeyModal({ isOpen, onClose, currentKey, onSave, onClear }: Ap
           {/* Security Warning */}
           <div className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
             <p className="text-xs text-yellow-200">
-              <strong>Warning:</strong> Only use on trusted devices and networks. Revoke your key if compromised.
+              <strong>Warning:</strong> Only use on trusted devices and networks. Clear your key here when you're done using it and revoke it from the fal dashboard if compromised.
             </p>
           </div>
 
