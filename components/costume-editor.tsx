@@ -29,7 +29,7 @@ export function CostumeEditor({
 
   // Clear API key errors when key is set
   useEffect(() => {
-    if (hasApiKey && error === 'Please set your FAL API key first') {
+    if (hasApiKey && error === 'Please set your fal API key first') {
       setError(null);
     }
   }, [hasApiKey, error]);
@@ -38,7 +38,7 @@ export function CostumeEditor({
     if (!prompt.trim()) return;
 
     if (!hasApiKey) {
-      setError('Please set your FAL API key first');
+      setError('Please set your fal API key first');
       return;
     }
 

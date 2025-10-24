@@ -24,7 +24,7 @@ export function ClothingSlot({ item, onUpdate, onRemove }: ClothingSlotProps) {
 
   // Clear API key errors when key is set
   useEffect(() => {
-    if (hasApiKey && error === 'Please set your FAL API key first') {
+    if (hasApiKey && error === 'Please set your fal API key first') {
       setError(null);
     }
   }, [hasApiKey, error]);
@@ -47,7 +47,7 @@ export function ClothingSlot({ item, onUpdate, onRemove }: ClothingSlotProps) {
     setError(null);
     
     if (!hasApiKey) {
-      setError('Please set your FAL API key first');
+      setError('Please set your fal API key first');
       return;
     }
 
@@ -84,7 +84,7 @@ export function ClothingSlot({ item, onUpdate, onRemove }: ClothingSlotProps) {
     if (!textInput.trim()) return;
 
     if (!hasApiKey) {
-      setError('Please set your FAL API key first');
+      setError('Please set your fal API key first');
       return;
     }
 

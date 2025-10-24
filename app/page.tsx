@@ -56,7 +56,7 @@ export default function Home() {
 
     try {
       const startTime = Date.now();
-      const prompt = `Create a do-it-yourself style Halloween costume using the given clothing items and dress the person with it. Make sure the person's face is still recognizable and you add some extra elements beyond the given clothen items to make it into a costume`;
+      const prompt = `Create a do-it-yourself style Halloween costume using the given clothing items and dress the person with it. Make sure the person's face is still recognizable and you add some extra elements beyond the given clothing items to make it into a costume`;
       const image_urls = [
         userPhoto!,
         ...clothingItems.filter((item) => item.url).map((item) => item.url!)
