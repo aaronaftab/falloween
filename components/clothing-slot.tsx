@@ -2,8 +2,10 @@
 
 import { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
+import { fal } from '@fal-ai/client';
 import { ClothingItem } from '@/lib/types';
 import { validateFile } from '@/lib/utils';
+import { useFalApi } from '@/lib/use-fal-api';
 
 interface ClothingSlotProps {
   item: ClothingItem;
@@ -18,8 +20,19 @@ export function ClothingSlot({ item, onUpdate, onRemove }: ClothingSlotProps) {
   const [loadingType, setLoadingType] = useState<'upload' | 'generate' | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const { hasApiKey } = useFalApi();
+
+  // Clear API key errors when key is set
+  useEffect(() => {
+    if (hasApiKey && error === 'Please set your FAL API key first') {
+      setError(null);
+    }
+  }, [hasApiKey, error]);
+
+  // Clear errors when switching modes
+  useEffect(() => {
+    setError(null);
+  }, [mode]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -27,18 +40,17 @@ export function ClothingSlot({ item, onUpdate, onRemove }: ClothingSlotProps) {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-      }
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
     };
   }, []);
 
   const handleFileUpload = async (file: File) => {
     setError(null);
     
+    if (!hasApiKey) {
+      setError('Please set your FAL API key first');
+      return;
+    }
+
     const validation = validateFile(file);
     if (!validation.valid) {
       setError(validation.error || 'Invalid file');
@@ -49,20 +61,7 @@ export function ClothingSlot({ item, onUpdate, onRemove }: ClothingSlotProps) {
     onUpdate({ ...item, loading: true });
 
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const response = await fetch('/api/fal/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Upload failed');
-      }
-
-      const { url } = await response.json();
+      const url = await fal.storage.upload(file);
       onUpdate({ ...item, type: 'upload', url, loading: false });
       setLoadingType(null);
     } catch (err) {
@@ -76,9 +75,6 @@ export function ClothingSlot({ item, onUpdate, onRemove }: ClothingSlotProps) {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
     setError(null);
     setLoadingType(null);
     onUpdate({ ...item, loading: false, url: null, text: textInput });
@@ -86,6 +82,11 @@ export function ClothingSlot({ item, onUpdate, onRemove }: ClothingSlotProps) {
 
   const handleTextGenerate = async () => {
     if (!textInput.trim()) return;
+
+    if (!hasApiKey) {
+      setError('Please set your FAL API key first');
+      return;
+    }
 
     setError(null);
     setLoadingType('generate');
@@ -96,115 +97,37 @@ export function ClothingSlot({ item, onUpdate, onRemove }: ClothingSlotProps) {
     // Capture current values to avoid stale closures
     const currentText = textInput;
     const itemId = item.id;
-    const itemType = item.type;
     
     // Create updated item with loading state
     const loadingItem = { ...item, loading: true, text: currentText, url: null };
     onUpdate(loadingItem);
 
     try {
-      // Step 1: Submit to queue
       const enhancedPrompt = `${currentText}, front facing view of full item with plain solid color background`;
-      const submitResponse = await fetch('/api/fal/text-to-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: enhancedPrompt }),
-        signal: abortControllerRef.current.signal,
+      
+      const result = await fal.subscribe('fal-ai/reve/text-to-image', {
+        input: {
+          prompt: enhancedPrompt,
+          aspect_ratio: '1:1',
+        },
+        logs: true,
+        onQueueUpdate: (update: any) => {
+          if (abortControllerRef.current?.signal.aborted) {
+            throw new Error('AbortError');
+          }
+        },
       });
 
-      if (!submitResponse.ok) {
-        const data = await submitResponse.json();
-        throw new Error(data.error || 'Failed to submit generation');
+      const url = result.data.images?.[0]?.url;
+      if (!url) {
+        throw new Error('No image generated');
       }
 
-      const { request_id } = await submitResponse.json();
-
-      // Step 2: Poll for status
-      const pollStatus = async (): Promise<void> => {
-        return new Promise((resolve, reject) => {
-          // Clear any existing intervals/timeouts
-          if (pollIntervalRef.current) {
-            clearInterval(pollIntervalRef.current);
-          }
-          if (timeoutRef.current) {
-            clearTimeout(timeoutRef.current);
-          }
-
-          const pollInterval = setInterval(async () => {
-            try {
-              const statusResponse = await fetch(
-                `/api/fal/text-to-image?request_id=${request_id}`,
-                { signal: abortControllerRef.current?.signal }
-              );
-
-              if (!statusResponse.ok) {
-                if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-                if (timeoutRef.current) clearTimeout(timeoutRef.current);
-                const data = await statusResponse.json();
-                reject(new Error(data.error || 'Failed to check status'));
-                return;
-              }
-
-              const status = await statusResponse.json();
-
-              if (status.status === 'COMPLETED') {
-                if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-                if (timeoutRef.current) clearTimeout(timeoutRef.current);
-                
-                // Extract image URL from response
-                // The fal client returns the actual response data in the status object when completed
-                const url = status.data?.images?.[0]?.url || status.response?.images?.[0]?.url || status.images?.[0]?.url;
-                if (!url) {
-                  console.error('Queue status response:', status);
-                  reject(new Error('No image generated'));
-                  return;
-                }
-
-                // Update with final successful state using captured values
-                onUpdate({ id: itemId, type: 'text', url, text: currentText, loading: false });
-                resolve();
-              } else if (status.status === 'FAILED') {
-                if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-                if (timeoutRef.current) clearTimeout(timeoutRef.current);
-                reject(new Error('Generation failed'));
-              }
-              // Continue polling if IN_QUEUE or IN_PROGRESS
-            } catch (err) {
-              if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-              if (timeoutRef.current) clearTimeout(timeoutRef.current);
-              reject(err);
-            }
-          }, 5000); // Poll every 5 seconds
-
-          // Store ref for cleanup
-          pollIntervalRef.current = pollInterval;
-
-          // Set a 120-second timeout for the entire polling process
-          timeoutRef.current = setTimeout(() => {
-            if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-            if (abortControllerRef.current) {
-              abortControllerRef.current.abort();
-            }
-            reject(new Error('Generation timed out. Please try again.'));
-          }, 120000);
-        });
-      };
-
-      await pollStatus();
-
-      // Clear timeout on success
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
+      onUpdate({ id: itemId, type: 'text', url, text: currentText, loading: false });
       setLoadingType(null);
     } catch (err) {
-      // Clear timeout on error
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-
       // Don't show error if it was aborted by user
-      if (err instanceof Error && err.name === 'AbortError') {
+      if (err instanceof Error && (err.name === 'AbortError' || err.message === 'AbortError')) {
         setLoadingType(null);
         return;
       }
@@ -212,8 +135,7 @@ export function ClothingSlot({ item, onUpdate, onRemove }: ClothingSlotProps) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to generate';
       setError(errorMessage);
       setLoadingType(null);
-      // Ensure loading is false and url is null on error, use captured values
-      onUpdate({ id: itemId, type: itemType, loading: false, url: null, text: currentText });
+      onUpdate({ id: itemId, type: 'text', loading: false, url: null, text: currentText });
     }
   };
 
@@ -222,6 +144,8 @@ export function ClothingSlot({ item, onUpdate, onRemove }: ClothingSlotProps) {
     if (file) {
       handleFileUpload(file);
     }
+    // Reset file input so the same file can be selected again
+    e.target.value = '';
   };
 
   if (item.url && !item.loading) {
@@ -229,7 +153,7 @@ export function ClothingSlot({ item, onUpdate, onRemove }: ClothingSlotProps) {
       <div className="relative border-2 border-ring rounded-lg p-4 bg-background">
         <button
           onClick={onRemove}
-          className="absolute top-2 right-2 w-6 h-6 bg-primary text-primary-foreground rounded-full hover:bg-primary/80 transition-colors flex items-center justify-center text-sm font-bold z-10"
+          className="absolute top-2 right-2 w-6 h-6 bg-primary text-primary-foreground rounded-full hover:bg-primary/80 transition-colors flex items-center justify-center text-sm font-bold z-10 cursor-pointer"
           aria-label="Remove item"
         >
           ×
@@ -257,6 +181,7 @@ export function ClothingSlot({ item, onUpdate, onRemove }: ClothingSlotProps) {
             src="/falloween_icon_white.png"
             alt="Loading"
             fill
+            sizes="64px"
             className="object-contain"
           />
         </div>
@@ -265,7 +190,7 @@ export function ClothingSlot({ item, onUpdate, onRemove }: ClothingSlotProps) {
         </p>
         <button
           onClick={handleCancel}
-          className="px-3 py-1 text-xs bg-secondary text-secondary-foreground rounded hover:bg-secondary/80 transition-colors"
+          className="px-3 py-1 text-xs bg-secondary text-secondary-foreground rounded hover:bg-secondary/80 transition-colors cursor-pointer"
         >
           Cancel
         </button>
@@ -278,7 +203,7 @@ export function ClothingSlot({ item, onUpdate, onRemove }: ClothingSlotProps) {
       <div className="flex gap-2 mb-4">
         <button
           onClick={() => setMode('upload')}
-          className={`flex-1 px-3 py-2 rounded text-sm font-medium transition-colors ${
+          className={`flex-1 px-3 py-2 rounded text-sm font-medium transition-colors cursor-pointer ${
             mode === 'upload'
               ? 'bg-primary text-primary-foreground'
               : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
@@ -288,7 +213,7 @@ export function ClothingSlot({ item, onUpdate, onRemove }: ClothingSlotProps) {
         </button>
         <button
           onClick={() => setMode('text')}
-          className={`flex-1 px-3 py-2 rounded text-sm font-medium transition-colors ${
+          className={`flex-1 px-3 py-2 rounded text-sm font-medium transition-colors cursor-pointer ${
             mode === 'text'
               ? 'bg-primary text-primary-foreground'
               : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
@@ -302,7 +227,7 @@ export function ClothingSlot({ item, onUpdate, onRemove }: ClothingSlotProps) {
         <div className="text-center">
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="w-full py-8 border-2 border-dashed border-border rounded-lg hover:border-ring transition-colors"
+            className="w-full py-8 border-2 border-dashed border-border rounded-lg hover:border-ring transition-colors cursor-pointer"
           >
             <div className="w-12 h-12 mx-auto text-muted-foreground/70 mb-2">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -341,7 +266,7 @@ export function ClothingSlot({ item, onUpdate, onRemove }: ClothingSlotProps) {
           <button
             onClick={handleTextGenerate}
             disabled={!textInput.trim()}
-            className="w-full px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:bg-secondary disabled:text-muted-foreground disabled:cursor-not-allowed transition-colors"
+            className="w-full px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:bg-secondary disabled:text-muted-foreground disabled:cursor-not-allowed transition-colors cursor-pointer"
           >
             {error ? 'Retry Generation' : 'Generate'}
           </button>
@@ -350,7 +275,7 @@ export function ClothingSlot({ item, onUpdate, onRemove }: ClothingSlotProps) {
 
       {error && (
         <div className="mt-2 p-2 bg-muted border border-border rounded">
-          <p className="text-xs text-muted-foreground">{error}</p>
+          <p className="text-xs text-red-400">{error}</p>
         </div>
       )}
     </div>

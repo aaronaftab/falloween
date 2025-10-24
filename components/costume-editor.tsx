@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
+import { fal } from '@fal-ai/client';
 import { EditHistoryItem } from '@/lib/types';
+import { useFalApi } from '@/lib/use-fal-api';
 
 interface CostumeEditorProps {
   currentImage: string;
@@ -23,25 +25,22 @@ export function CostumeEditor({
   const [prompt, setPrompt] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
-  // Refs to track polling intervals and timeouts for cleanup
-  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const pollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const { hasApiKey } = useFalApi();
 
-  // Cleanup on unmount
+  // Clear API key errors when key is set
   useEffect(() => {
-    return () => {
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-      }
-      if (pollTimeoutRef.current) {
-        clearTimeout(pollTimeoutRef.current);
-      }
-    };
-  }, []);
+    if (hasApiKey && error === 'Please set your FAL API key first') {
+      setError(null);
+    }
+  }, [hasApiKey, error]);
 
   const handleApplyChanges = async () => {
     if (!prompt.trim()) return;
+
+    if (!hasApiKey) {
+      setError('Please set your FAL API key first');
+      return;
+    }
 
     setIsEditing(true);
     setError(null);
@@ -49,89 +48,19 @@ export function CostumeEditor({
     try {
       const currentPrompt = prompt.trim();
 
-      // Step 1: Submit to queue
-      const submitResponse = await fetch('/api/fal/edit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const result = await fal.subscribe('fal-ai/reve/edit', {
+        input: {
           prompt: currentPrompt,
           image_url: currentImage,
-        }),
+        },
+        logs: true,
       });
 
-      if (!submitResponse.ok) {
-        const data = await submitResponse.json();
-        throw new Error(data.error || 'Failed to submit edit');
+      const newImageUrl = result.data.images?.[0]?.url;
+      if (!newImageUrl) {
+        throw new Error('No image generated');
       }
 
-      const { request_id } = await submitResponse.json();
-
-      // Step 2: Poll for status
-      const pollStatus = async (): Promise<string> => {
-        return new Promise((resolve, reject) => {
-          // Clear any existing intervals/timeouts
-          if (pollIntervalRef.current) {
-            clearInterval(pollIntervalRef.current);
-          }
-          if (pollTimeoutRef.current) {
-            clearTimeout(pollTimeoutRef.current);
-          }
-
-          const pollInterval = setInterval(async () => {
-            try {
-              const statusResponse = await fetch(
-                `/api/fal/edit?request_id=${request_id}`
-              );
-
-              if (!statusResponse.ok) {
-                if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-                if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
-                const data = await statusResponse.json();
-                reject(new Error(data.error || 'Failed to check status'));
-                return;
-              }
-
-              const status = await statusResponse.json();
-
-              if (status.status === 'COMPLETED') {
-                if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-                if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
-                
-                // Extract image URL from response
-                // The fal client returns the actual response data in the status object when completed
-                const newImageUrl = status.data?.images?.[0]?.url || status.response?.images?.[0]?.url || status.images?.[0]?.url;
-                if (!newImageUrl) {
-                  console.error('Queue status response:', status);
-                  reject(new Error('No image generated'));
-                  return;
-                }
-
-                resolve(newImageUrl);
-              } else if (status.status === 'FAILED') {
-                if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-                if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
-                reject(new Error('Edit failed'));
-              }
-              // Continue polling if IN_QUEUE or IN_PROGRESS
-            } catch (err) {
-              if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-              if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
-              reject(err);
-            }
-          }, 5000); // Poll every 5 seconds
-
-          // Store refs for cleanup
-          pollIntervalRef.current = pollInterval;
-
-          // Set a 120-second timeout for the entire polling process
-          pollTimeoutRef.current = setTimeout(() => {
-            if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-            reject(new Error('Generation timed out. Please try again.'));
-          }, 120000);
-        });
-      };
-
-      const newImageUrl = await pollStatus();
       onEdit(newImageUrl, currentPrompt);
       setPrompt('');
     } catch (err) {
@@ -166,7 +95,7 @@ export function CostumeEditor({
           <button
             onClick={handleApplyChanges}
             disabled={!prompt.trim() || isEditing}
-            className="px-6 py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 disabled:bg-secondary disabled:text-muted-foreground disabled:cursor-not-allowed transition-colors"
+            className="px-6 py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 disabled:bg-secondary disabled:text-muted-foreground disabled:cursor-not-allowed transition-colors cursor-pointer"
           >
             {isEditing ? (
               <span className="flex items-center gap-2">
@@ -185,7 +114,7 @@ export function CostumeEditor({
             <button
               key={example}
               onClick={() => handleQuickPrompt(example)}
-              className="px-3 py-1 text-sm bg-secondary text-secondary-foreground rounded-full hover:bg-primary hover:text-primary-foreground transition-colors"
+              className="px-3 py-1 text-sm bg-secondary text-secondary-foreground rounded-full hover:bg-primary hover:text-primary-foreground transition-colors cursor-pointer"
               disabled={isEditing}
             >
               {example}
@@ -195,7 +124,7 @@ export function CostumeEditor({
 
         {error && (
           <div className="p-3 bg-muted border border-border rounded-lg">
-            <p className="text-sm text-muted-foreground">{error}</p>
+            <p className="text-sm text-red-400">{error}</p>
           </div>
         )}
       </div>

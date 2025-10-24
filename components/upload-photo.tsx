@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
+import { fal } from '@fal-ai/client';
 import { validateFile } from '@/lib/utils';
+import { useFalApi } from '@/lib/use-fal-api';
 
 interface UploadPhotoProps {
   onUpload: (url: string) => void;
@@ -15,10 +17,23 @@ export function UploadPhoto({ onUpload, onConfirm, currentPhoto }: UploadPhotoPr
   const [error, setError] = useState<string | null>(null);
   const [tempPhoto, setTempPhoto] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { hasApiKey } = useFalApi();
+
+  // Clear API key errors when key is set
+  useEffect(() => {
+    if (hasApiKey && error === 'Please set your fal API key first') {
+      setError(null);
+    }
+  }, [hasApiKey, error]);
 
   const handleFile = async (file: File) => {
     setError(null);
     
+    if (!hasApiKey) {
+      setError('Please set your fal API key first');
+      return;
+    }
+
     const validation = validateFile(file);
     if (!validation.valid) {
       setError(validation.error || 'Invalid file');
@@ -28,20 +43,7 @@ export function UploadPhoto({ onUpload, onConfirm, currentPhoto }: UploadPhotoPr
     setUploading(true);
 
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const response = await fetch('/api/fal/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Upload failed');
-      }
-
-      const { url } = await response.json();
+      const url = await fal.storage.upload(file);
       setTempPhoto(url);
       onUpload(url);
     } catch (err) {
@@ -56,6 +58,8 @@ export function UploadPhoto({ onUpload, onConfirm, currentPhoto }: UploadPhotoPr
     if (file) {
       handleFile(file);
     }
+    // Reset file input so the same file can be selected again
+    e.target.value = '';
   };
 
   const displayPhoto = currentPhoto || tempPhoto;
@@ -85,6 +89,7 @@ export function UploadPhoto({ onUpload, onConfirm, currentPhoto }: UploadPhotoPr
                     src="/falloween_icon_white.png"
                     alt="Loading"
                     fill
+                    sizes="64px"
                     className="object-contain"
                   />
                 </div>
@@ -94,7 +99,7 @@ export function UploadPhoto({ onUpload, onConfirm, currentPhoto }: UploadPhotoPr
               <>
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="px-6 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-medium"
+                  className="px-6 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-medium cursor-pointer"
                 >
                   Upload
                 </button>
@@ -119,7 +124,7 @@ export function UploadPhoto({ onUpload, onConfirm, currentPhoto }: UploadPhotoPr
       </div>
 
       {error && (
-        <p className="mt-2 text-sm text-muted-foreground text-center">{error}</p>
+        <p className="mt-2 text-sm text-red-400 text-center">{error}</p>
       )}
 
       {displayPhoto && !uploading && (
@@ -127,15 +132,16 @@ export function UploadPhoto({ onUpload, onConfirm, currentPhoto }: UploadPhotoPr
           <button
             onClick={() => {
               setTempPhoto(null);
+              setError(null);
               fileInputRef.current?.click();
             }}
-            className="w-full px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors"
+            className="w-full px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors cursor-pointer"
           >
-            Change Photo
+            Change photo
           </button>
           <button
             onClick={onConfirm}
-            className="w-full px-6 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-medium text-lg"
+            className="w-full px-6 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-medium text-lg cursor-pointer"
           >
             Continue →
           </button>

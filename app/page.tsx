@@ -1,12 +1,15 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState } from 'react';
 import Image from 'next/image';
+import { fal } from '@fal-ai/client';
 import { UploadPhoto } from '@/components/upload-photo';
 import { ClothingInput } from '@/components/clothing-input';
 import { CostumeEditor } from '@/components/costume-editor';
+import { ApiKeyModal } from '@/components/api-key-modal';
 import { ClothingItem, EditHistoryItem } from '@/lib/types';
 import { downloadImage } from '@/lib/utils';
+import { useFalApi } from '@/lib/use-fal-api';
 
 export default function Home() {
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -22,22 +25,9 @@ export default function Home() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
   
-  // Refs to track polling intervals and timeouts for cleanup
-  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const pollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-      }
-      if (pollTimeoutRef.current) {
-        clearTimeout(pollTimeoutRef.current);
-      }
-    };
-  }, []);
+  const { apiKey, hasApiKey, setApiKey, clearApiKey } = useFalApi();
 
   const filledClothingCount = clothingItems.filter((item) => item.url).length;
   const canProceedToGenerate = userPhoto && filledClothingCount > 0;
@@ -55,109 +45,46 @@ export default function Home() {
   const handleContinueToGenerate = async () => {
     if (!canProceedToGenerate) return;
     
+    if (!hasApiKey) {
+      setIsApiKeyModalOpen(true);
+      return;
+    }
+    
     setStep(3);
     setIsGenerating(true);
     setGenerationError(null);
 
     try {
+      const startTime = Date.now();
       const prompt = `Create a do-it-yourself style Halloween costume using the given clothing items and dress the person with it. Make sure the person's face is still recognizable and you add some extra elements beyond the given clothen items to make it into a costume`;
       const image_urls = [
         userPhoto!,
         ...clothingItems.filter((item) => item.url).map((item) => item.url!)
       ];
 
-      // Step 1: Submit to queue
-      const submitResponse = await fetch('/api/fal/remix', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt, image_urls }),
+      const result = await fal.subscribe('fal-ai/reve/remix', {
+        input: {
+          prompt,
+          image_urls,
+        },
+        logs: true,
       });
 
-      if (!submitResponse.ok) {
-        const data = await submitResponse.json();
-        throw new Error(data.error || 'Failed to submit generation');
+      const imageUrl = result.data.images?.[0]?.url;
+      if (!imageUrl) {
+        throw new Error('No image generated');
       }
 
-      const { request_id, submittedAt } = await submitResponse.json();
-
-      // Step 2: Poll for status
-      const pollStatus = async (): Promise<void> => {
-        return new Promise((resolve, reject) => {
-          // Clear any existing intervals/timeouts
-          if (pollIntervalRef.current) {
-            clearInterval(pollIntervalRef.current);
-          }
-          if (pollTimeoutRef.current) {
-            clearTimeout(pollTimeoutRef.current);
-          }
-
-          const pollInterval = setInterval(async () => {
-            try {
-              const statusResponse = await fetch(
-                `/api/fal/remix?request_id=${request_id}&submitted_at=${submittedAt}`
-              );
-
-              if (!statusResponse.ok) {
-                if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-                if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
-                const data = await statusResponse.json();
-                reject(new Error(data.error || 'Failed to check status'));
-                return;
-              }
-
-              const status = await statusResponse.json();
-
-              if (status.status === 'COMPLETED') {
-                if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-                if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
-                
-                // Extract image URL and generation time from response
-                // The fal client returns the actual response data in the status object when completed
-                const imageUrl = status.data?.images?.[0]?.url || status.response?.images?.[0]?.url || status.images?.[0]?.url;
-                const time = status.generationTime || 0;
-
-                if (!imageUrl) {
-                  console.error('Queue status response:', status);
-                  reject(new Error('No image generated'));
-                  return;
-                }
-
-                setGeneratedCostume(imageUrl);
-                setGenerationTime(time);
-                
-                // Add original generation to edit history
-                setEditHistory([{
-                  prompt: 'Original generation',
-                  url: imageUrl,
-                  timestamp: Date.now(),
-                }]);
-                
-                resolve();
-              } else if (status.status === 'FAILED') {
-                if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-                if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
-                reject(new Error('Generation failed'));
-              }
-              // Continue polling if IN_QUEUE or IN_PROGRESS
-            } catch (err) {
-              if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-              if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
-              reject(err);
-            }
-          }, 5000); // Poll every 5 seconds
-
-          // Store refs for cleanup
-          pollIntervalRef.current = pollInterval;
-
-          // Set a 120-second timeout for the entire polling process
-          pollTimeoutRef.current = setTimeout(() => {
-            if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-            reject(new Error('Generation timed out. Please try again.'));
-          }, 120000);
-        });
-      };
-
-      await pollStatus();
+      const generationTime = Date.now() - startTime;
+      setGeneratedCostume(imageUrl);
+      setGenerationTime(generationTime);
+      
+      // Add original generation to edit history
+      setEditHistory([{
+        prompt: 'Original generation',
+        url: imageUrl,
+        timestamp: Date.now(),
+      }]);
     } catch (err) {
       setGenerationError(err instanceof Error ? err.message : 'Failed to generate costume');
     } finally {
@@ -190,6 +117,7 @@ export default function Home() {
     setEditHistory([]);
     setIsGenerating(false);
     setGenerationError(null);
+    setIsApiKeyModalOpen(false);
   };
 
   const handleDownload = () => {
@@ -231,18 +159,43 @@ export default function Home() {
                   src="/falloween_logo_white.png"
                   alt="Falloween"
                   fill
+                  sizes="192px"
                   className="object-contain object-left"
                 />
               </div>
             </a>
-            {step > 1 && (
+            <div className="flex items-center gap-3">
               <button
-                onClick={handleStartOver}
-                className="px-4 py-2 text-sm bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors"
+                onClick={() => setIsApiKeyModalOpen(true)}
+                className="relative p-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors cursor-pointer"
+                aria-label="API Key Settings"
+                title={hasApiKey ? 'API Key Set' : 'Set API Key'}
               >
-                Start over
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                </svg>
+                {/* Status indicator */}
+                <span 
+                  className={`absolute top-1/2 -translate-y-1/2 -left-1 w-2.5 h-2.5 rounded-full border-2 border-background ${
+                    hasApiKey ? 'bg-green-500' : 'bg-red-500'
+                  }`}
+                  aria-hidden="true"
+                />
               </button>
-            )}
+              {!hasApiKey && (
+                <span className="text-sm text-red-400 whitespace-nowrap">
+                  Add your fal API key!
+                </span>
+              )}
+              {step > 1 && (
+                <button
+                  onClick={handleStartOver}
+                  className="px-4 py-2 text-sm bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors cursor-pointer"
+                >
+                  Start over
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -326,14 +279,14 @@ export default function Home() {
                 <div className="flex justify-center gap-4">
                   <button
                     onClick={() => setStep(1)}
-                    className="px-6 py-3 bg-secondary text-secondary-foreground rounded-lg font-medium hover:bg-secondary/80 transition-colors"
+                    className="px-6 py-3 bg-secondary text-secondary-foreground rounded-lg font-medium hover:bg-secondary/80 transition-colors cursor-pointer"
                   >
                     ← Back
                   </button>
                   <button
                     onClick={handleContinueToGenerate}
                     disabled={!canProceedToGenerate}
-                    className="px-8 py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 disabled:bg-secondary disabled:text-muted-foreground disabled:cursor-not-allowed transition-colors"
+                    className="px-8 py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 disabled:bg-secondary disabled:text-muted-foreground disabled:cursor-not-allowed transition-colors cursor-pointer"
                   >
                     Generate costume →
                   </button>
@@ -352,6 +305,7 @@ export default function Home() {
                         src="/falloween_icon_white.png"
                         alt="Generating"
                         fill
+                        sizes="64px"
                         className="object-contain"
                       />
                     </div>
@@ -366,17 +320,17 @@ export default function Home() {
                   <div className="w-full max-w-2xl mx-auto text-center space-y-6">
                     <div className="p-6 bg-muted border-2 border-border rounded-lg">
                       <h3 className="text-xl font-bold text-foreground mb-2">Generation Failed</h3>
-                      <p className="text-muted-foreground mb-4">{generationError}</p>
+                      <p className="text-red-400 mb-4">{generationError}</p>
                       <div className="flex gap-3 justify-center">
                         <button
                           onClick={() => setStep(2)}
-                          className="px-6 py-3 bg-secondary text-secondary-foreground rounded-lg font-medium hover:bg-secondary/80 transition-colors"
+                          className="px-6 py-3 bg-secondary text-secondary-foreground rounded-lg font-medium hover:bg-secondary/80 transition-colors cursor-pointer"
                         >
                           ← Back
                         </button>
                         <button
                           onClick={handleContinueToGenerate}
-                          className="px-6 py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors"
+                          className="px-6 py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors cursor-pointer"
                         >
                           Try again
                         </button>
@@ -424,7 +378,7 @@ export default function Home() {
                         <div className="flex flex-col gap-3">
                           <button
                             onClick={handleDownload}
-                            className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors shadow-lg"
+                            className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors shadow-lg cursor-pointer"
                           >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -433,7 +387,7 @@ export default function Home() {
                           </button>
                           <button
                             onClick={handleCopyLink}
-                            className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-secondary text-secondary-foreground rounded-lg font-medium hover:bg-secondary/80 transition-colors shadow-lg"
+                            className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-secondary text-secondary-foreground rounded-lg font-medium hover:bg-secondary/80 transition-colors shadow-lg cursor-pointer"
                           >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -450,6 +404,15 @@ export default function Home() {
           </div>
         </div>
       </main>
+
+      {/* API Key Modal */}
+      <ApiKeyModal
+        isOpen={isApiKeyModalOpen}
+        onClose={() => setIsApiKeyModalOpen(false)}
+        currentKey={apiKey}
+        onSave={setApiKey}
+        onClear={clearApiKey}
+      />
     </div>
   );
 }
