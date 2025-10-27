@@ -184,7 +184,7 @@ export default function Home() {
               </button>
               {!hasApiKey && (
                 <span className="text-xs sm:text-sm text-red-400 whitespace-nowrap">
-                  Add your fal API key!
+                  Add your API key!
                 </span>
               )}
               {step > 1 && (
