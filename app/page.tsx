@@ -164,15 +164,15 @@ export default function Home() {
                 />
               </div>
             </a>
-            <div className="flex items-center gap-2 sm:gap-3 shrink min-w-0">
+            <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-end">
               <button
                 onClick={() => setIsApiKeyModalOpen(true)}
-                className="relative p-2 text-secondary-foreground hover:text-foreground transition-colors cursor-pointer"
+                className="relative p-2 text-secondary-foreground hover:text-foreground transition-colors cursor-pointer shrink-0"
                 aria-label="API Key Settings"
                 title={hasApiKey ? 'API Key Set' : 'Set API Key'}
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1721 9z" />
                 </svg>
                 {/* Status indicator */}
                 <span 
@@ -183,14 +183,14 @@ export default function Home() {
                 />
               </button>
               {!hasApiKey && (
-                <span className="text-xs sm:text-sm text-red-400 truncate">
-                  Add your fal API key!
+                <span className="text-xs sm:text-sm text-red-400">
+                  Add your API key!
                 </span>
               )}
               {step > 1 && (
                 <button
                   onClick={handleStartOver}
-                  className="px-3 py-2 text-xs sm:text-sm bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors cursor-pointer whitespace-nowrap"
+                  className="px-3 py-2 text-xs sm:text-sm bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors cursor-pointer whitespace-nowrap shrink-0"
                 >
                   Start over
                 </button>
