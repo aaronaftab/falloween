@@ -152,7 +152,7 @@ export default function Home() {
               href="https://fal.ai" 
               target="_blank" 
               rel="noopener noreferrer"
-              className="flex items-center gap-3 shrink-0"
+              className="flex items-center gap-3"
             >
               <div className="h-12 w-48 relative">
                 <Image
@@ -164,33 +164,33 @@ export default function Home() {
                 />
               </div>
             </a>
-            <div className="flex items-center gap-1.5 sm:gap-3">
+            <div className="flex items-center gap-3">
               <button
                 onClick={() => setIsApiKeyModalOpen(true)}
-                className="relative p-1.5 sm:p-2 text-secondary-foreground hover:text-foreground transition-colors cursor-pointer shrink-0"
+                className="relative p-2 text-secondary-foreground hover:text-foreground transition-colors cursor-pointer"
                 aria-label="API Key Settings"
                 title={hasApiKey ? 'API Key Set' : 'Set API Key'}
               >
-                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1721 9z" />
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                 </svg>
                 {/* Status indicator */}
                 <span 
-                  className={`absolute top-1/2 -translate-y-1/2 -left-0.5 sm:-left-1 w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full border-2 border-background ${
+                  className={`absolute top-1/2 -translate-y-1/2 -left-1 w-2.5 h-2.5 rounded-full border-2 border-background ${
                     hasApiKey ? 'bg-green-500' : 'bg-red-500'
                   }`}
                   aria-hidden="true"
                 />
               </button>
               {!hasApiKey && (
-                <span className="text-[10px] sm:text-sm text-red-400 whitespace-nowrap">
-                  Add your API key!
+                <span className="text-xs sm:text-sm text-red-400 whitespace-nowrap">
+                  Add your fal API key!
                 </span>
               )}
               {step > 1 && (
                 <button
                   onClick={handleStartOver}
-                  className="px-2 py-1.5 sm:px-4 sm:py-2 text-[10px] sm:text-sm bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                  className="px-4 py-2 text-sm bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors cursor-pointer"
                 >
                   Start over
                 </button>
@@ -201,8 +201,8 @@ export default function Home() {
       </header>
 
       {/* Main Content */}
-      <main className="w-full">
-        <div className="container mx-auto px-4 py-6 max-w-4xl">
+      <main className="container mx-auto px-4 py-6">
+        <div className="max-w-4xl mx-auto">
           {/* Title & Subtitle */}
           <div className="text-center mb-6">
             <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2">
