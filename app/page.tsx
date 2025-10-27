@@ -167,7 +167,7 @@ export default function Home() {
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setIsApiKeyModalOpen(true)}
-                className="relative p-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors cursor-pointer"
+                className="relative p-2 text-secondary-foreground hover:text-foreground transition-colors cursor-pointer"
                 aria-label="API Key Settings"
                 title={hasApiKey ? 'API Key Set' : 'Set API Key'}
               >
