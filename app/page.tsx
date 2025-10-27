@@ -152,7 +152,7 @@ export default function Home() {
               href="https://fal.ai" 
               target="_blank" 
               rel="noopener noreferrer"
-              className="flex items-center gap-3"
+              className="flex items-center gap-3 shrink-0"
             >
               <div className="h-12 w-48 relative">
                 <Image
@@ -164,7 +164,7 @@ export default function Home() {
                 />
               </div>
             </a>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 shrink min-w-0">
               <button
                 onClick={() => setIsApiKeyModalOpen(true)}
                 className="relative p-2 text-secondary-foreground hover:text-foreground transition-colors cursor-pointer"
@@ -183,14 +183,14 @@ export default function Home() {
                 />
               </button>
               {!hasApiKey && (
-                <span className="text-sm text-red-400 whitespace-nowrap">
+                <span className="text-xs sm:text-sm text-red-400 truncate">
                   Add your fal API key!
                 </span>
               )}
               {step > 1 && (
                 <button
                   onClick={handleStartOver}
-                  className="px-4 py-2 text-sm bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors cursor-pointer"
+                  className="px-3 py-2 text-xs sm:text-sm bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors cursor-pointer whitespace-nowrap"
                 >
                   Start over
                 </button>
@@ -201,8 +201,8 @@ export default function Home() {
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-6">
-        <div className="max-w-4xl mx-auto">
+      <main className="w-full">
+        <div className="container mx-auto px-4 py-6 max-w-4xl">
           {/* Title & Subtitle */}
           <div className="text-center mb-6">
             <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2">
