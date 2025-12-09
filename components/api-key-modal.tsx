@@ -81,7 +81,7 @@ export function ApiKeyModal({ isOpen, onClose, currentKey, onSave, onClear }: Ap
                     handleSave();
                   }
                 }}
-                placeholder="Enter your fal API key"
+                placeholder="Enter your API key"
                 className="w-full px-3 py-2 bg-input border border-border rounded-lg text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:ring-2 focus:ring-ring pr-20"
               />
               <button
@@ -100,7 +100,7 @@ export function ApiKeyModal({ isOpen, onClose, currentKey, onSave, onClear }: Ap
             rel="noopener noreferrer"
             className="block text-sm text-primary hover:underline"
           >
-            Get your fal API key →
+            Get your API key →
           </a>
 
           <div className="flex gap-2 pt-2">
